@@ -1,2 +1,9 @@
 coded_videos*/
 sintel-480p/
+*.mkv
+*.mp4
+*.png
+*.jpg
+*.webm
+*.avi
+*.log
