@@ -1,6 +1,6 @@
 # Testing codecs laboratory
 
-This repository contains [the script run_lab.sh](run_lab.sh) to automate the encoding of a video file using several codecs and compression rate factors (CRFs) formats.
+This repository contains the script [run_lab.sh](run_lab.sh) to automate the encoding of a video file using several codecs and compression rate factors (CRFs) formats.
 
 ## What does the script do
 
