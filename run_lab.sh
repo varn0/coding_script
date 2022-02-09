@@ -15,7 +15,7 @@ monitor () {
 }
 
 code () {
-    ffmpeg -framerate 24 -i "$SOURCE" -benchmark -c:v "$1" -crf "$2" -pix_fmt yuv420p "$VIDEOS_PATH"/video_"$1"_"$2".mkv > "$VIDEOS_PATH"/coding_"$1"_"$2".log 2>&1 &
+    ffmpeg -i "$SOURCE" -benchmark -c:v "$1" -crf "$2" -pix_fmt yuv420p "$VIDEOS_PATH"/video_"$1"_"$2".mkv > "$VIDEOS_PATH"/coding_"$1"_"$2".log 2>&1 &
     pss=$!
     monitor $pss "$1" "$2"
     echo "Coding duration was:"
@@ -44,7 +44,7 @@ for codec in "${CODECS[@]}"; do
         for crf in "${CRF_2[@]}"
         do
             echo "Coding with codec $codec and CRF $crf"
-            ffmpeg -framerate 24 -i sintel-480p/sintel_trailer_2k_%04d.png -benchmark -c:v "$codec" -crf "$crf" -pix_fmt yuv420p -strict -2 -cpu-used 4 "$VIDEOS_PATH"/video_"$codec"_"$crf".mkv > "$VIDEOS_PATH"/coding_"$codec"_"$crf".log 2>&1 &
+            ffmpeg -i sintel-480p/sintel_trailer_2k_%04d.png -benchmark -c:v "$codec" -crf "$crf" -pix_fmt yuv420p -strict -2 -cpu-used 4 "$VIDEOS_PATH"/video_"$codec"_"$crf".mkv > "$VIDEOS_PATH"/coding_"$codec"_"$crf".log 2>&1 &
             pss=$!
             monitor $pss "$codec" "$crf"
         done
@@ -62,19 +62,39 @@ do
 done
 
 
+RERUN_QM=false
+
+
+# TODO - Optimize data collection
 get_data_from_logs() {
-        frameI=$(sed -n 's/.*frame I:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/video_"$1"_"$2")
-        frameP=$(sed -n 's/.*frame P:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/video_"$1"_"$2")
-        frameB=$(sed -n 's/.*frame B:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/video_"$1"_"$2")
-        bitrate=$(mediainfo ${VIDEOS_PATH}/video_"$1"_"$2" | sed -n 's/Bit rate.*: \(.*\) kb\/s/\1/p')
-        size=$(find ${VIDEOS_PATH}/video_"$1"_"$2" -printf "%s")
-        computetime=$(sed -n 's/.*rtime=\(.*\)s/\1/p' ${VIDEOS_PATH}/video_"$1"_"$2")
-        cpuload=$(paste -d " "  - - < ${VIDEOS_PATH}/mon_cpu_"$1"_"$2".log | awk -F ' ' '$1 {sum += $1} END {printf sum/NR}')
-        maxmem=$(sed -n 's/.*maxrss=\(.*\)kB/\1/p' ${VIDEOS_PATH}/video_"$1"_"$2")
-        ssim=$(ffmpeg -i ${VIDEOS_PATH}/video_"$1"_"$2".mkv -i reference_crf0_x264_3_yuv420.mkv -lavfi psnr="stats_file=psnr_$1_$2.log" -f null - 2>&1 | sed -n 's/.*average:\(.*\)min.*/\1/p')          
-        psnr=$(ffmpeg -i ${VIDEOS_PATH}/video_"$1"_"$2".mkv -i reference_crf0_x264_3_yuv420.mkv -lavfi psnr="stats_file=psnr_$1_$2.log" -f null - 2>&1 | sed -n 's/.*average:\(.*\)min.*/\1/p')
+        if [ "${1:0:4}" == 'libx' ]; then
+            # TODO sanitize data
+            frameI=$(sed -n 's/.*frame I:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+            frameP=$(sed -n 's/.*frame P:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+            frameB=$(sed -n 's/.*frame B:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+        elif [ "${1:0:4}" == 'libv' ]; then
+            frameI=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=I | wc -l)
+            frameP=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=P | wc -l)
+            frameB=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=B | wc -l)
+        else
+            frameI="0"
+            frameP="0"
+            frameB="0"
+        fi
+        bitrate=$(mediainfo ${VIDEOS_PATH}/video_"$1"_"$2".mkv | sed -n 's/Bit rate.*: \(.*\) kb\/s/\1/p')
+        size=$(find ${VIDEOS_PATH}/video_"$1"_"$2".mkv -printf "%s")
+        computetime=$(sed -n 's/.*rtime=\(.*\)s/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+        cpuload=$(paste -d " "  - - < ${VIDEOS_PATH}/mon_"$1"_"$2".log | awk -F ' ' '$1 {sum += $1} END {printf sum/NR}')
+        maxmem=$(sed -n 's/.*maxrss=\(.*\)kB/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+        if [ ! -f data/psnr_stdout_"$1"_"$2".log ] || [ $RERUN_QM ]; then
+            ffmpeg -i ${VIDEOS_PATH}/video_"$1"_"$2".mkv -i reference_crf0_x264_3_yuv420.mkv -lavfi psnr="stats_file=data/psnr_$1_$2.log" -f null - > data/psnr_stdout_"$1"_"$2".log 2>&1
+            ffmpeg -i ${VIDEOS_PATH}/video_"$1"_"$2".mkv -i reference_crf0_x264_3_yuv420.mkv -lavfi ssim="stats_file=data/ssim_$1_$2.log" -f null - > data/ssim_stdout_"$1"_"$2".log 2>&1
+        fi
+        psnr=$(sed -n 's/.*average:\(.*\)min.*/\1/p' data/psnr_stdout_"$1"_"$2".log)
+        ssim=$(sed -n 's/.*All:\(.*\)(.*/\1/p' data/ssim_stdout_"$1"_"$2".log)
 }
 
+# Data collection
 for codec in "${CODECS[@]}"; do
     if [ "${codec:0:4}" == 'libx' ]; then
         for crf in "${CRF_1[@]}"; do
@@ -88,24 +108,4 @@ for codec in "${CODECS[@]}"; do
         done
     fi
 done > codecs_info.csv
-
-
-# Generate RATE and PSNR Table
-ROWS=${#CRF_1[@]}
-data=()
-
-for ((i=1;i<=ROWS;i++)) do
-    for codec in "${CODECS[@]}"; do
-        if [ "${codec:0:4}" == 'libx' ]; then
-            rate=$(mediainfo ${VIDEOS_PATH}/video_"${codec}"_"${CRF_1[(i-1)]}".mkv | sed -n 's/Bit rate.*: \(.*\) kb\/s/\1/p')
-            psnr=$(ffmpeg -i ${VIDEOS_PATH}/video_"${codec}"_"${CRF_1[(i-1)]}".mkv -i reference_crf0_x264_3_yuv420.mkv -lavfi psnr="stats_file=psnr_${codec}_${CRF_1[(i-1)]}.log" -f null - 2>&1 | sed -n 's/.*average:\(.*\)min.*/\1/p')
-            data=("${data[@]}" "${rate},${psnr}")
-        else
-            rate2=$(mediainfo coded_videos/video_"${codec}"_"${CRF_2[(i-1)]}".mkv | sed -n 's/Bit rate.*: \(.*\) kb\/s/\1/p')
-            psnr2=$(ffmpeg -i coded_videos/video_"${codec}"_"${CRF_2[(i-1)]}".mkv -i reference_crf0_x264_3_yuv420.mkv -lavfi psnr="stats_file=psnr_${codec}_${CRF_1[(i-1)]}.log" -f null - 2>&1 | sed -n 's/.*average:\(.*\)min.*/\1/p')
-            data=("${data[@]}" "${rate2},${psnr2}")
-        fi
-    done
-    echo "${data[0]},${data[1]},${data[2]},${data[3]}"
-    data=()
-done > bitrate_psnr_info.log
+echo "Finished"

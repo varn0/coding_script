@@ -1,5 +1,6 @@
 # Testing codecs laboratory
-This repository contains a bash script to automate the encoding of a video file using several codecs and compression rate factors (CRFs) formats.
+
+This repository contains [the script run_lab.sh](run_lab.sh) to automate the encoding of a video file using several codecs and compression rate factors (CRFs) formats.
 
 ## What does the script do
 
@@ -18,9 +19,9 @@ This repository contains a bash script to automate the encoding of a video file 
 
 ## How to obtain the reference video
 
-This is the command to obtain the reference video from a set of images
+This command can be used to obtain the reference video from a set of images
 
 ```bash
-ffmpeg -i <source_images> ...
+ffmpeg -i img%03d.png -c:v libx264 -vf fps=25 -pix_fmt yuv420p out.mp4
 ```
 

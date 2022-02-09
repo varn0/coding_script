@@ -9,31 +9,21 @@ RERUN_QM=false
 
 # TODO - Optimize data collection
 get_data_from_logs() {
-        frameI=$((crf++))
-        frameP=$((crf++))
-        frameB=$((crf++))
-        bitrate=$((crf++))
-        # size=$((crf++))
-        # computetime=$((crf++))
-        # cpuload=$((crf++))
-        # maxmem=$((crf++))
-        ssim=$((crf++))
-        # psnr=$((crf++))
-        # if [ "${1:0:4}" == 'libx' ]; then
-        #     # TODO sanitize data
-        #     frameI=$(sed -n 's/.*frame I:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
-        #     frameP=$(sed -n 's/.*frame P:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
-        #     frameB=$(sed -n 's/.*frame B:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
-        # elif [ "${1:0:4}" == 'libv' ]; then
-        #     frameI=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=I | wc -l)
-        #     frameP=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=P | wc -l)
-        #     frameB=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=B | wc -l)
-        # else
-        #     frameI="0"
-        #     frameP="0"
-        #     frameB="0"
-        # fi
-        # bitrate=$(mediainfo ${VIDEOS_PATH}/video_"$1"_"$2".mkv | sed -n 's/Bit rate.*: \(.*\) kb\/s/\1/p')
+        if [ "${1:0:4}" == 'libx' ]; then
+            # TODO sanitize data
+            frameI=$(sed -n 's/.*frame I:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+            frameP=$(sed -n 's/.*frame P:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+            frameB=$(sed -n 's/.*frame B:\(.*\)Avg.*/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
+        elif [ "${1:0:4}" == 'libv' ]; then
+            frameI=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=I | wc -l)
+            frameP=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=P | wc -l)
+            frameB=$(ffprobe  -v error -show_frames ${VIDEOS_PATH}/video_"$1"_"$2".mkv | grep pict_type=B | wc -l)
+        else
+            frameI="0"
+            frameP="0"
+            frameB="0"
+        fi
+        bitrate=$(mediainfo ${VIDEOS_PATH}/video_"$1"_"$2".mkv | sed -n 's/Bit rate.*: \(.*\) kb\/s/\1/p')
         size=$(find ${VIDEOS_PATH}/video_"$1"_"$2".mkv -printf "%s")
         computetime=$(sed -n 's/.*rtime=\(.*\)s/\1/p' ${VIDEOS_PATH}/coding_"$1"_"$2".log)
         cpuload=$(paste -d " "  - - < ${VIDEOS_PATH}/mon_"$1"_"$2".log | awk -F ' ' '$1 {sum += $1} END {printf sum/NR}')
@@ -59,5 +49,5 @@ for codec in "${CODECS[@]}"; do
         done
     fi
 done > codecs_info.csv
-
+echo "Finished"
 
