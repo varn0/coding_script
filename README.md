@@ -5,8 +5,9 @@ This repository contains the script [run_lab.sh](run_lab.sh) to automate the enc
 ## What does the script do
 
 - encodes a reference video using several codecs and CRFs
+- obtains the use of CPU and RAM during the encoding process
 - obtains a set of data from the encoded videos
-- process the data to be represented in different charts for further analysis
+- process and stores the monitoring data and the video data for further analysis
 
 ## Inputs of the script
 
